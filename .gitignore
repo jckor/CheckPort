@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated outputs
+*.csv
+*.html
+*.xlsx
+
+# pytest cache
+.pytest_cache/
