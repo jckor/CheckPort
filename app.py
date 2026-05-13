@@ -1,5 +1,6 @@
 import os
 import io
+import re
 from flask import Flask, request, jsonify, render_template, send_file
 from fetch_vessel_movements_daily import fetch_vessel_records
 import openpyxl
@@ -21,10 +22,12 @@ def query():
     end_date   = data.get("end_date", "").strip()
     if not prtAgCd or not start_date or not end_date:
         return jsonify({"error": "prtAgCd, start_date, end_date 가 필요합니다."}), 400
+    if not re.fullmatch(r'\d{8}', start_date) or not re.fullmatch(r'\d{8}', end_date):
+        return jsonify({"error": "날짜 형식은 YYYYMMDD (8자리 숫자)여야 합니다."}), 400
     try:
         records = fetch_vessel_records(SERVICE_KEY, prtAgCd, start_date, end_date)
         return jsonify({"records": records, "total": len(records)})
-    except RuntimeError as e:
+    except Exception as e:
         return jsonify({"error": str(e)}), 400
 
 
@@ -45,9 +48,11 @@ def export():
     end_date   = request.args.get("end_date", "").strip()
     if not prtAgCd or not start_date or not end_date:
         return "prtAgCd, start_date, end_date 가 필요합니다.", 400
+    if not re.fullmatch(r'\d{8}', start_date) or not re.fullmatch(r'\d{8}', end_date):
+        return "날짜 형식은 YYYYMMDD (8자리 숫자)여야 합니다.", 400
     try:
         records = fetch_vessel_records(SERVICE_KEY, prtAgCd, start_date, end_date)
-    except RuntimeError as e:
+    except Exception as e:
         return str(e), 400
 
     wb = openpyxl.Workbook()

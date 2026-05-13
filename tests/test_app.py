@@ -76,3 +76,21 @@ def test_export_returns_xlsx(client):
 def test_export_missing_params_returns_400(client):
     resp = client.get("/export?prtAgCd=621")
     assert resp.status_code == 400
+
+
+def test_export_empty_records_returns_xlsx(client):
+    with patch("app.fetch_vessel_records", return_value=[]):
+        resp = client.get(
+            "/export?prtAgCd=621&start_date=20250801&end_date=20250831"
+        )
+    assert resp.status_code == 200
+    assert "spreadsheetml" in resp.content_type
+
+
+def test_query_invalid_date_format_returns_400(client):
+    resp = client.post(
+        "/query",
+        json={"prtAgCd": "621", "start_date": "2025-08-01", "end_date": "20250831"},
+    )
+    assert resp.status_code == 400
+    assert "YYYYMMDD" in resp.get_json()["error"]
