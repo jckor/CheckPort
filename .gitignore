@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 *.pyo
 
+# 환경변수 (서비스키 포함 — 절대 커밋하지 마세요)
+.env
+
 # Generated outputs
 *.csv
 *.xlsx

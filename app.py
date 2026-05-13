@@ -3,7 +3,10 @@ import io
 import re
 from flask import Flask, request, jsonify, render_template, send_file
 from fetch_vessel_movements_daily import fetch_vessel_records
+from dotenv import load_dotenv
 import openpyxl
+
+load_dotenv()
 
 app = Flask(__name__)
 SERVICE_KEY = os.environ.get("SERVICE_KEY", "")
