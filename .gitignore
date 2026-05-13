@@ -5,8 +5,9 @@ __pycache__/
 
 # Generated outputs
 *.csv
-*.html
 *.xlsx
+*.html
+!templates/*.html
 
 # pytest cache
 .pytest_cache/
