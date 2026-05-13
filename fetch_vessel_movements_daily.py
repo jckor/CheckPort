@@ -53,7 +53,7 @@ def fetch_vessel_records(
     total_count_text = root.findtext(".//totalCount")
     total_count = int(total_count_text) if total_count_text and total_count_text.isdigit() else 0
 
-    def extract_items(xml_text: str) -> None:
+    def extract_items(xml_text: str) -> None:  # mutates all_details via closure
         rt = ET.fromstring(xml_text)
         for it in rt.findall(".//items/item"):
             port_code   = it.findtext("prtAgCd")
