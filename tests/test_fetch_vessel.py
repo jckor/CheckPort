@@ -7,7 +7,7 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fetch_vessel_movements_daily import fetch_vessel_movements_daily
+from fetch_vessel_movements_daily import fetch_vessel_movements_daily, fetch_vessel_records
 
 
 # --- XML builders ---
@@ -35,6 +35,9 @@ def _item_xml(vssl_nm, entry_exit, dt):
     return f"""<item>
   <prtAgCd>621</prtAgCd><prtAgNm>여수항</prtAgNm>
   <clsgn>TEST1</clsgn><vsslNm>{vssl_nm}</vsslNm>
+  <vsslKndNm>일반화물선</vsslKndNm>
+  <vsslNltyNm>대한민국</vsslNltyNm>
+  <etryptPurpsNm>하역</etryptPurpsNm>
   <details>
     <detail>
       <etryndNm>{entry_exit}</etryndNm>
@@ -42,7 +45,10 @@ def _item_xml(vssl_nm, entry_exit, dt):
       <laidupFcltyNm>1부두</laidupFcltyNm>
       <ibobprtNm>외항</ibobprtNm>
       <tugYn>Y</tugYn><piltgYn>Y</piltgYn>
-      <ldadngFrghtClCd>01</ldadngFrghtClCd>
+      <ldadngFrghtClCd>27</ldadngFrghtClCd>
+      <ldadngTon>1000</ldadngTon>
+      <landngFrghtTon>2000</landngFrghtTon>
+      <trnpdtTon>0</trnpdtTon>
       <grtg>5000</grtg>
       <satmntEntrpsNm>TestCo</satmntEntrpsNm>
     </detail>
@@ -184,7 +190,9 @@ def test_raw_csv_has_expected_columns():
             raw = os.path.join(d, "raw.csv")
             fetch_vessel_movements_daily("fake_key", "621", "20250801", "20250801", out, raw)
             df = pd.read_csv(raw)
-            for col in ["date", "entry_exit", "vessel_name", "port_name", "berth_name"]:
+            for col in ["date", "entry_exit", "vessel_name", "port_name", "berth_name",
+                        "cargo_type_code", "cargo_type_name", "ld_ton", "landng_ton",
+                        "vessel_type", "entry_purpose"]:
                 assert col in df.columns, f"Missing column: {col}"
 
 
@@ -206,3 +214,26 @@ def test_detail_with_missing_date_is_skipped():
             raw = os.path.join(d, "raw.csv")
             fetch_vessel_movements_daily("fake_key", "621", "20250801", "20250801", out, raw)
             assert not os.path.exists(raw), "No raw CSV should be created when all records are skipped"
+
+
+def test_fetch_vessel_records_returns_list():
+    item = _item_xml("VesselA", "입항", "2025-08-01T10:00:00+09:00")
+    with patch("requests.get", return_value=_mock_resp(_xml_response(1, item))):
+        records = fetch_vessel_records("fake_key", "621", "20250801", "20250801")
+    assert len(records) == 1
+    assert records[0]["vessel_name"] == "VesselA"
+    assert records[0]["entry_exit"] == "입항"
+    assert records[0]["date"] == "2025-08-01"
+
+
+def test_fetch_vessel_records_empty_returns_empty_list():
+    with patch("requests.get", return_value=_mock_resp(_xml_response(0))):
+        records = fetch_vessel_records("fake_key", "621", "20250801", "20250801")
+    assert records == []
+
+
+def test_fetch_vessel_records_api_error_raises():
+    err_xml = "<response><header><resultCode>99</resultCode><resultMsg>INVALID</resultMsg></header></response>"
+    with patch("requests.get", return_value=_mock_resp(err_xml)):
+        with pytest.raises(RuntimeError, match="99"):
+            fetch_vessel_records("fake_key", "621", "20250801", "20250801")
