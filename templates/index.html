@@ -10,10 +10,13 @@
         .summary-card { border-left: 4px solid; }
         .page-link { cursor: pointer; }
         #results-section { display: none; }
+        thead th { cursor: pointer; user-select: none; white-space: nowrap; }
+        thead th.sort-asc::after  { content: " ▲"; font-size: .75em; }
+        thead th.sort-desc::after { content: " ▼"; font-size: .75em; }
     </style>
 </head>
 <body class="bg-light">
-<div class="container py-4">
+<div class="container-fluid py-4">
     <h2 class="mb-4 fw-bold">선박 입출항 조회 시스템</h2>
 
     <!-- 조회 폼 -->
@@ -21,20 +24,32 @@
         <div class="card-body">
             <div class="row g-3 align-items-end">
                 <div class="col-md-4">
-                    <label class="form-label fw-bold">항만청코드</label>
-                    <select id="port-select" class="form-select" onchange="syncPortInput()">
-                        <option value="621">여수항 (621)</option>
-                        <option value="011">부산항 (011)</option>
-                        <option value="021">인천항 (021)</option>
-                        <option value="031">울산항 (031)</option>
-                        <option value="041">광양항 (041)</option>
-                        <option value="051">마산항 (051)</option>
-                        <option value="061">목포항 (061)</option>
-                        <option value="custom">직접 입력...</option>
-                    </select>
-                    <input type="text" id="port-input" class="form-control mt-1"
-                           placeholder="코드 직접 입력 (예: 621)" style="display:none"
-                           oninput="syncPortSelect()">
+                    <label class="form-label fw-bold">항만청</label>
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                type="button" id="port-btn"
+                                data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                                aria-expanded="false">
+                            항만 선택
+                        </button>
+                        <div class="dropdown-menu p-2"
+                             style="min-width:270px;max-height:400px;overflow-y:auto;">
+                            <div class="d-flex gap-2 mb-2">
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-primary flex-fill"
+                                        onclick="selectAllPorts()">전체 선택</button>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary flex-fill"
+                                        onclick="clearAllPorts()">전체 해제</button>
+                            </div>
+                            <hr class="my-1">
+                            <div id="port-checks"></div>
+                            <hr class="my-1">
+                            <input type="text" id="port-custom" class="form-control form-control-sm"
+                                   placeholder="직접 입력 (쉼표 구분, 예: 151,231)"
+                                   oninput="updatePortBtnLabel()">
+                        </div>
+                    </div>
                 </div>
                 <div class="col-md-3">
                     <label class="form-label fw-bold">조회 시작일</label>
@@ -68,19 +83,73 @@
                 <div class="row g-2 align-items-center">
                     <div class="col-md-3">
                         <input type="text" id="filter-vessel-name" class="form-control"
-                               placeholder="선박명 검색" oninput="applyFilters()">
+                               placeholder="선박명 검색 (쉼표로 다중 입력)" oninput="applyFilters()">
                     </div>
-                    <div class="col-md-3">
-                        <select id="filter-vessel-type" class="form-select"
-                                onchange="applyFilters()">
-                            <option value="">전체 선박종류</option>
-                        </select>
+                    <div class="col-md-2">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                    type="button" id="vtype-btn"
+                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                                전체 선박종류
+                            </button>
+                            <div class="dropdown-menu p-2"
+                                 style="min-width:220px;max-height:300px;overflow-y:auto;">
+                                <div class="d-flex gap-2 mb-2">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-primary flex-fill"
+                                            onclick="selectAllCb('vtype-cb')">전체 선택</button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary flex-fill"
+                                            onclick="clearAllCb('vtype-cb')">전체 해제</button>
+                                </div>
+                                <hr class="my-1">
+                                <div id="vtype-checks"></div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-3">
-                        <select id="filter-cargo-type" class="form-select"
-                                onchange="applyFilters()">
-                            <option value="">전체 화물종류</option>
-                        </select>
+                    <div class="col-md-2">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                    type="button" id="cargo-btn"
+                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                                전체 화물종류
+                            </button>
+                            <div class="dropdown-menu p-2"
+                                 style="min-width:220px;max-height:300px;overflow-y:auto;">
+                                <div class="d-flex gap-2 mb-2">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-primary flex-fill"
+                                            onclick="selectAllCb('cargo-cb')">전체 선택</button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary flex-fill"
+                                            onclick="clearAllCb('cargo-cb')">전체 해제</button>
+                                </div>
+                                <hr class="my-1">
+                                <div id="cargo-checks"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="dropdown">
+                            <button class="btn btn-outline-secondary dropdown-toggle w-100 text-start"
+                                    type="button" id="nat-btn"
+                                    data-bs-toggle="dropdown" data-bs-auto-close="outside">
+                                전체 국적
+                            </button>
+                            <div class="dropdown-menu p-2"
+                                 style="min-width:220px;max-height:300px;overflow-y:auto;">
+                                <div class="d-flex gap-2 mb-2">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-primary flex-fill"
+                                            onclick="selectAllCb('nat-cb')">전체 선택</button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary flex-fill"
+                                            onclick="clearAllCb('nat-cb')">전체 해제</button>
+                                </div>
+                                <hr class="my-1">
+                                <div id="nat-checks"></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-1">
                         <button class="btn btn-outline-secondary w-100"
@@ -134,14 +203,20 @@ const COLUMNS = [
     ["landng_ton",         "양하톤수"],
     ["trnpdt_ton",         "환적톤수"],
     ["grtg",               "총톤수"],
+    ["de_raw_entry_dt",    "입항일시(원본)"],
+    ["de_raw_depart_dt",   "출항일시(원본)"],
+    ["declarer",           "신고인"],
 ];
 const PAGE_SIZE = 100;
+const NUMERIC_COLS = new Set(["ld_ton", "landng_ton", "trnpdt_ton", "grtg"]);
 
 /* ── 상태 ─────────────────────────────────────────────── */
 let allRecords      = [];
 let filteredRecords = [];
 let currentPage     = 1;
 let currentParams   = {};
+let sortKey         = "date";
+let sortDir         = "asc";
 
 /* ── HTML 이스케이프 ───────────────────────────────────── */
 function esc(s) {
@@ -149,35 +224,153 @@ function esc(s) {
                           .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function fmtCell(key, val) {
+    if (NUMERIC_COLS.has(key)) {
+        const n = parseFloat(val);
+        if (!isNaN(n)) return n.toLocaleString("ko-KR");
+        return "";
+    }
+    return esc(val);
+}
+
+/* ── 항만 목록 [청코드, 무역항명, 세부구역] ───────────── */
+const PORT_LIST = [
+    ["20",  "부산항",      "부산, 감천, 신항"],
+    ["30",  "인천항",      "인천"],
+    ["50",  "경인항",      "경인"],
+    ["31",  "평택·당진항", "평택"],
+    ["200", "동해·묵호항", "동해"],
+    ["202", "동해·묵호항", "묵호"],
+    ["300", "대산항",      "대산"],
+    ["303", "대산항",      "당진(화력)"],
+    ["304", "대산항",      "보령해양수산출장소"],
+    ["500", "군산항",      "군산"],
+    ["501", "장항항",      "장항"],
+    ["610", "목포항",      "목포"],
+    ["616", "목포항",      "대불분실"],
+    ["617", "여수항",      "북항분실, 여수"],
+    ["620", "광양항",      "여수"],
+    ["621", "광양항",      "여천"],
+    ["622", "광양항",      "광양"],
+    ["700", "포항항",      "포항"],
+    ["701", "포항항",      "신항"],
+    ["702", "포항항",      "영일만"],
+    ["810", "마산항",      "마산"],
+    ["820", "울산항",      "울산"],
+];
+
+/* ── 항만 체크박스 초기화 (무역항별 그룹) ────────────── */
+(function initPortChecks() {
+    const container = document.getElementById("port-checks");
+
+    // 무역항명 기준으로 그룹화 (순서 유지)
+    const groups = [];
+    const seen   = {};
+    PORT_LIST.forEach(([code, name, region]) => {
+        if (!seen[name]) { seen[name] = []; groups.push([name, seen[name]]); }
+        seen[name].push([code, region]);
+    });
+
+    groups.forEach(([name, entries]) => {
+        const wrap = document.createElement("div");
+        wrap.className = "mb-1";
+
+        if (entries.length === 1) {
+            const [code, region] = entries[0];
+            wrap.innerHTML =
+                `<div class="form-check">` +
+                `<input class="form-check-input port-cb" type="checkbox" value="${code}"
+                        id="port-${code}" onchange="updatePortBtnLabel()">` +
+                `<label class="form-check-label small" for="port-${code}">` +
+                `${name}, ${code}, ${region}</label></div>`;
+        } else {
+            const gid = `grp-${name}`;
+            wrap.innerHTML =
+                `<div class="form-check">` +
+                `<input class="form-check-input" type="checkbox" id="${gid}"
+                        onchange="toggleGroup('${name}', this.checked)">` +
+                `<label class="form-check-label small fw-semibold" for="${gid}">${name}</label></div>`;
+            entries.forEach(([code, region]) => {
+                const child = document.createElement("div");
+                child.className = "form-check ms-3";
+                child.innerHTML =
+                    `<input class="form-check-input port-cb" type="checkbox" value="${code}"
+                            id="port-${code}" data-group="${name}"
+                            onchange="syncGroupHeader('${name}'); updatePortBtnLabel()">` +
+                    `<label class="form-check-label small" for="port-${code}">` +
+                    `${name}, ${code}, ${region}</label>`;
+                wrap.appendChild(child);
+            });
+        }
+        container.appendChild(wrap);
+    });
+})();
+
+function toggleGroup(name, checked) {
+    document.querySelectorAll(`.port-cb[data-group="${name}"]`)
+        .forEach(cb => cb.checked = checked);
+    updatePortBtnLabel();
+}
+
+function syncGroupHeader(name) {
+    const children = [...document.querySelectorAll(`.port-cb[data-group="${name}"]`)];
+    const hdr = document.getElementById(`grp-${name}`);
+    if (!hdr) return;
+    const checkedCount = children.filter(cb => cb.checked).length;
+    hdr.checked       = checkedCount === children.length;
+    hdr.indeterminate = checkedCount > 0 && checkedCount < children.length;
+}
+
 /* ── 항만코드 UI ──────────────────────────────────────── */
-function syncPortInput() {
-    const sel = document.getElementById("port-select");
-    const inp = document.getElementById("port-input");
-    inp.style.display = sel.value === "custom" ? "block" : "none";
-    if (sel.value === "custom") inp.focus();
-    else inp.value = "";
+function selectAllPorts() {
+    document.querySelectorAll(".port-cb").forEach(cb => cb.checked = true);
+    document.querySelectorAll("[id^='grp-']").forEach(hdr => {
+        hdr.checked = true; hdr.indeterminate = false;
+    });
+    updatePortBtnLabel();
 }
 
-function syncPortSelect() {
-    const sel = document.getElementById("port-select");
-    if (sel.value !== "custom") sel.value = "custom";
+function clearAllPorts() {
+    document.querySelectorAll(".port-cb").forEach(cb => cb.checked = false);
+    document.querySelectorAll("[id^='grp-']").forEach(hdr => {
+        hdr.checked = false; hdr.indeterminate = false;
+    });
+    document.getElementById("port-custom").value = "";
+    updatePortBtnLabel();
 }
 
-function getPortCode() {
-    const sel = document.getElementById("port-select");
-    return sel.value === "custom"
-        ? document.getElementById("port-input").value.trim()
-        : sel.value;
+function updatePortBtnLabel() {
+    const checked = [...document.querySelectorAll(".port-cb:checked")];
+    const custom  = (document.getElementById("port-custom").value || "")
+        .split(",").map(s => s.trim()).filter(Boolean);
+    const total = checked.length + custom.length;
+    const btn = document.getElementById("port-btn");
+    if (total === 0) {
+        btn.textContent = "항만 선택";
+    } else if (total === 1) {
+        const code = checked.length ? checked[0].value : custom[0];
+        const entry = PORT_LIST.find(([c]) => c === code);
+        btn.textContent = entry ? `${entry[1]}, ${code}, ${entry[2]}` : code;
+    } else {
+        btn.textContent = `${total}개 항만 선택`;
+    }
+}
+
+function getPortCodes() {
+    const checked = [...document.querySelectorAll(".port-cb:checked")].map(cb => cb.value);
+    const custom  = (document.getElementById("port-custom").value || "")
+        .split(",").map(s => s.trim()).filter(Boolean);
+    return [...new Set([...checked, ...custom])];
 }
 
 /* ── 조회 ─────────────────────────────────────────────── */
 async function runQuery() {
-    const prtAgCd   = getPortCode();
+    const codes     = getPortCodes();
     const startDate = document.getElementById("start-date").value.replace(/-/g, "");
     const endDate   = document.getElementById("end-date").value.replace(/-/g, "");
 
-    if (!prtAgCd || !startDate || !endDate) {
-        showError("항만청코드, 시작일, 종료일을 모두 입력해주세요.");
+    if (!codes.length || !startDate || !endDate) {
+        showError("항만 1개 이상, 시작일, 종료일을 모두 입력해주세요.");
         return;
     }
     if (startDate > endDate) {
@@ -185,7 +378,7 @@ async function runQuery() {
         return;
     }
 
-    currentParams = { prtAgCd, start_date: startDate, end_date: endDate };
+    currentParams = { prtAgCd: codes, start_date: startDate, end_date: endDate };
     showError("");
     showLoading(true);
     document.getElementById("results-section").style.display = "none";
@@ -249,42 +442,131 @@ function renderSummary(records) {
     ).join("");
 }
 
+/* ── 필터 체크박스 드롭다운 공통 설정 ─────────────────── */
+const CB_CONFIG = {
+    "vtype-cb": { btnId: "vtype-btn", allLabel: "전체 선박종류" },
+    "cargo-cb": { btnId: "cargo-btn", allLabel: "전체 화물종류" },
+    "nat-cb":   { btnId: "nat-btn",   allLabel: "전체 국적"     },
+};
+
+function buildCbDropdown(containerId, cbClass, values) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = "";
+    values.forEach(val => {
+        const safeId = `${cbClass}-${val.replace(/[^a-z0-9]/gi, "_")}`;
+        const div = document.createElement("div");
+        div.className = "form-check";
+        div.innerHTML =
+            `<input class="form-check-input ${cbClass}" type="checkbox" value="${esc(val)}"
+                    id="${safeId}" checked onchange="onCbChange('${cbClass}')">` +
+            `<label class="form-check-label small" for="${safeId}">${esc(val)}</label>`;
+        container.appendChild(div);
+    });
+    refreshCbBtn(cbClass);
+}
+
+function onCbChange(cbClass) { refreshCbBtn(cbClass); applyFilters(); }
+
+function refreshCbBtn(cbClass) {
+    const { btnId, allLabel } = CB_CONFIG[cbClass];
+    const all     = document.querySelectorAll(`.${cbClass}`);
+    const checked = document.querySelectorAll(`.${cbClass}:checked`);
+    const btn = document.getElementById(btnId);
+    if (all.length === 0 || checked.length === all.length) btn.textContent = allLabel;
+    else if (checked.length === 0)                          btn.textContent = "선택";
+    else if (checked.length === 1)                          btn.textContent = checked[0].value;
+    else                                                    btn.textContent = `${checked.length}개 선택`;
+}
+
+function selectAllCb(cbClass) {
+    document.querySelectorAll(`.${cbClass}`).forEach(cb => cb.checked = true);
+    refreshCbBtn(cbClass); applyFilters();
+}
+
+function clearAllCb(cbClass) {
+    document.querySelectorAll(`.${cbClass}`).forEach(cb => cb.checked = false);
+    refreshCbBtn(cbClass); applyFilters();
+}
+
+function getCbSelected(cbClass) {
+    const all     = [...document.querySelectorAll(`.${cbClass}`)];
+    const checked = all.filter(cb => cb.checked);
+    if (all.length === 0 || checked.length === all.length) return null;
+    return new Set(checked.map(cb => cb.value));
+}
+
 /* ── 필터 드롭다운 자동 구성 ──────────────────────────── */
 function populateFilterDropdowns(records) {
     const vtypes = [...new Set(records.map(r => r.vessel_type).filter(Boolean))].sort();
     const ctypes = [...new Set(records.map(r => r.cargo_type_name).filter(Boolean))].sort();
+    const nats   = [...new Set(records.map(r => r.vessel_nationality).filter(Boolean))].sort();
 
-    document.getElementById("filter-vessel-type").innerHTML =
-        `<option value="">전체 선박종류</option>` +
-        vtypes.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
-
-    document.getElementById("filter-cargo-type").innerHTML =
-        `<option value="">전체 화물종류</option>` +
-        ctypes.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
+    buildCbDropdown("vtype-checks", "vtype-cb", vtypes);
+    buildCbDropdown("cargo-checks", "cargo-cb", ctypes);
+    buildCbDropdown("nat-checks",   "nat-cb",   nats);
 }
 
 /* ── 필터 적용 ────────────────────────────────────────── */
 function applyFilters() {
-    const nameQ = document.getElementById("filter-vessel-name").value.toLowerCase();
-    const vtQ   = document.getElementById("filter-vessel-type").value;
-    const ctQ   = document.getElementById("filter-cargo-type").value;
+    const nameTerms = document.getElementById("filter-vessel-name").value
+        .split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    const vtypes = getCbSelected("vtype-cb");
+    const cargos = getCbSelected("cargo-cb");
+    const nats   = getCbSelected("nat-cb");
 
     filteredRecords = allRecords.filter(r => {
-        if (nameQ && !(r.vessel_name || "").toLowerCase().includes(nameQ)) return false;
-        if (vtQ   && r.vessel_type      !== vtQ) return false;
-        if (ctQ   && r.cargo_type_name  !== ctQ) return false;
+        if (nameTerms.length > 0) {
+            const vn = (r.vessel_name || "").toLowerCase();
+            if (!nameTerms.some(t => vn.includes(t))) return false;
+        }
+        if (vtypes && !vtypes.has(r.vessel_type      || "")) return false;
+        if (cargos && !cargos.has(r.cargo_type_name  || "")) return false;
+        if (nats   && !nats.has(r.vessel_nationality || ""))  return false;
         return true;
     });
 
+    sortRecords();
     currentPage = 1;
     renderTable();
 }
 
 function resetFilters() {
     document.getElementById("filter-vessel-name").value = "";
-    document.getElementById("filter-vessel-type").value = "";
-    document.getElementById("filter-cargo-type").value = "";
+    Object.keys(CB_CONFIG).forEach(cls => {
+        document.querySelectorAll(`.${cls}`).forEach(cb => cb.checked = true);
+        refreshCbBtn(cls);
+    });
     applyFilters();
+}
+
+/* ── 정렬 ─────────────────────────────────────────────── */
+function setSort(key) {
+    if (sortKey === key) {
+        sortDir = sortDir === "asc" ? "desc" : "asc";
+    } else {
+        sortKey = key;
+        sortDir = "asc";
+    }
+    sortRecords();
+    currentPage = 1;
+    renderTable();
+}
+
+function sortRecords() {
+    filteredRecords.sort((a, b) => {
+        let va = a[sortKey] ?? "";
+        let vb = b[sortKey] ?? "";
+        if (NUMERIC_COLS.has(sortKey)) {
+            va = parseFloat(va) || 0;
+            vb = parseFloat(vb) || 0;
+        } else {
+            va = String(va);
+            vb = String(vb);
+        }
+        if (va < vb) return sortDir === "asc" ? -1 : 1;
+        if (va > vb) return sortDir === "asc" ?  1 : -1;
+        return 0;
+    });
 }
 
 /* ── 테이블 + 페이지네이션 ────────────────────────────── */
@@ -295,12 +577,15 @@ function renderTable() {
     const pageRecs   = filteredRecords.slice(start, start + PAGE_SIZE);
 
     document.getElementById("table-head").innerHTML =
-        `<tr>${COLUMNS.map(([, label]) => `<th class="text-nowrap">${label}</th>`).join("")}</tr>`;
+        `<tr>${COLUMNS.map(([key, label]) => {
+            const cls = key === sortKey ? ` sort-${sortDir}` : "";
+            return `<th class="text-nowrap${cls}" onclick="setSort('${key}')">${label}</th>`;
+        }).join("")}</tr>`;
 
     document.getElementById("table-body").innerHTML = pageRecs.length
         ? pageRecs.map(r =>
             `<tr>${COLUMNS.map(([key]) =>
-                `<td class="text-nowrap">${esc(r[key])}</td>`
+                `<td>${fmtCell(key, r[key])}</td>`
             ).join("")}</tr>`
           ).join("")
         : `<tr><td colspan="${COLUMNS.length}" class="text-center text-muted py-4">
@@ -344,13 +629,16 @@ function goPage(p) {
 
 /* ── XLSX 다운로드 ────────────────────────────────────── */
 function downloadXlsx() {
-    if (!currentParams.prtAgCd) {
+    if (!currentParams.prtAgCd || !currentParams.prtAgCd.length) {
         showError("먼저 조회를 실행해주세요.");
         return;
     }
     const { prtAgCd, start_date, end_date } = currentParams;
-    window.location.href =
-        `/export?prtAgCd=${prtAgCd}&start_date=${start_date}&end_date=${end_date}`;
+    const params = new URLSearchParams();
+    prtAgCd.forEach(c => params.append("prtAgCd", c));
+    params.set("start_date", start_date);
+    params.set("end_date", end_date);
+    window.location.href = `/export?${params.toString()}`;
 }
 
 /* ── 유틸 ─────────────────────────────────────────────── */

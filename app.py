@@ -20,17 +20,20 @@ def index():
 @app.route("/query", methods=["POST"])
 def query():
     data = request.get_json() or {}
-    prtAgCd    = data.get("prtAgCd", "").strip()
+    raw        = data.get("prtAgCd", "")
+    codes      = [c.strip() for c in (raw if isinstance(raw, list) else [raw]) if str(c).strip()]
     start_date = data.get("start_date", "").strip()
     end_date   = data.get("end_date", "").strip()
-    if not prtAgCd or not start_date or not end_date:
+    if not codes or not start_date or not end_date:
         return jsonify({"error": "prtAgCd, start_date, end_date 가 필요합니다."}), 400
     if not re.fullmatch(r'\d{8}', start_date) or not re.fullmatch(r'\d{8}', end_date):
         return jsonify({"error": "날짜 형식은 YYYYMMDD (8자리 숫자)여야 합니다."}), 400
     if start_date > end_date:
         return jsonify({"error": "start_date는 end_date보다 늦을 수 없습니다."}), 400
     try:
-        records = fetch_vessel_records(SERVICE_KEY, prtAgCd, start_date, end_date)
+        records = []
+        for code in codes:
+            records.extend(fetch_vessel_records(SERVICE_KEY, code, start_date, end_date))
         return jsonify({"records": records, "total": len(records)})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
@@ -48,17 +51,19 @@ def _sum_ton(records: list[dict], key: str) -> float:
 
 @app.route("/export")
 def export():
-    prtAgCd    = request.args.get("prtAgCd", "").strip()
+    codes      = [c.strip() for c in request.args.getlist("prtAgCd") if c.strip()]
     start_date = request.args.get("start_date", "").strip()
     end_date   = request.args.get("end_date", "").strip()
-    if not prtAgCd or not start_date or not end_date:
+    if not codes or not start_date or not end_date:
         return "prtAgCd, start_date, end_date 가 필요합니다.", 400
     if not re.fullmatch(r'\d{8}', start_date) or not re.fullmatch(r'\d{8}', end_date):
         return "날짜 형식은 YYYYMMDD (8자리 숫자)여야 합니다.", 400
     if start_date > end_date:
         return "start_date는 end_date보다 늦을 수 없습니다.", 400
     try:
-        records = fetch_vessel_records(SERVICE_KEY, prtAgCd, start_date, end_date)
+        records = []
+        for code in codes:
+            records.extend(fetch_vessel_records(SERVICE_KEY, code, start_date, end_date))
     except Exception as e:
         return str(e), 400
 
@@ -94,7 +99,7 @@ def export():
     wb.save(buf)
     buf.seek(0)
 
-    safe_port = re.sub(r'[^\w-]', '_', prtAgCd)
+    safe_port = re.sub(r'[^\w-]', '_', "_".join(codes))
     filename = f"vessel_movements_{safe_port}_{start_date}_{end_date}.xlsx"
     return send_file(
         buf,
@@ -106,4 +111,4 @@ def export():
 
 if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"
-    app.run(debug=debug, port=5000)
+    app.run(host="0.0.0.0", debug=debug, port=5001)

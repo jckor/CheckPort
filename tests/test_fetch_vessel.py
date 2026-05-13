@@ -224,7 +224,7 @@ def test_fetch_vessel_records_returns_list():
     assert records[0]["vessel_name"] == "VesselA"
     assert records[0]["entry_exit"] == "입항"
     assert records[0]["date"] == "2025-08-01"
-    assert records[0]["cargo_type_name"] == "석유류"
+    assert records[0]["cargo_type_name"] == "광물성 연료·에너지"
     assert records[0]["vessel_type"] == "일반화물선"
     assert records[0]["ld_ton"] == "1000"
     assert records[0]["landng_ton"] == "2000"
