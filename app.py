@@ -1,7 +1,10 @@
-import os
 import io
+import json
+import os
+import queue
 import re
-from flask import Flask, request, jsonify, render_template, send_file
+import threading
+from flask import Flask, request, jsonify, render_template, send_file, Response
 from fetch_vessel_movements_daily import fetch_vessel_records
 from dotenv import load_dotenv
 import openpyxl
@@ -37,6 +40,59 @@ def query():
         return jsonify({"records": records, "total": len(records)})
     except Exception as e:
         return jsonify({"error": str(e)}), 400
+
+
+@app.route("/query-stream")
+def query_stream():
+    codes      = [c.strip() for c in request.args.getlist("prtAgCd") if c.strip()]
+    start_date = request.args.get("start_date", "").strip()
+    end_date   = request.args.get("end_date", "").strip()
+    if not codes or not start_date or not end_date:
+        return jsonify({"error": "prtAgCd, start_date, end_date 가 필요합니다."}), 400
+    if not re.fullmatch(r'\d{8}', start_date) or not re.fullmatch(r'\d{8}', end_date):
+        return jsonify({"error": "날짜 형식은 YYYYMMDD (8자리 숫자)여야 합니다."}), 400
+    if start_date > end_date:
+        return jsonify({"error": "start_date는 end_date보다 늦을 수 없습니다."}), 400
+
+    q           = queue.Queue()
+    total_codes = len(codes)
+
+    def worker():
+        try:
+            all_records = []
+            for code_idx, code in enumerate(codes):
+                def make_cb(ci):
+                    def cb(page, pages):
+                        pct = min(99, int((ci + page / pages) / total_codes * 100))
+                        q.put(("progress", pct))
+                    return cb
+                all_records.extend(
+                    fetch_vessel_records(SERVICE_KEY, code, start_date, end_date,
+                                         progress_cb=make_cb(code_idx))
+                )
+            q.put(("done", all_records))
+        except Exception as e:
+            q.put(("error", str(e)))
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    def generate():
+        while True:
+            kind, data = q.get()
+            if kind == "progress":
+                yield f"data: {json.dumps({'progress': data})}\n\n"
+            elif kind == "done":
+                yield f"data: {json.dumps({'progress': 100, 'records': data, 'total': len(data)})}\n\n"
+                break
+            else:
+                yield f"data: {json.dumps({'error': data})}\n\n"
+                break
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 def _sum_ton(records: list[dict], key: str) -> float:

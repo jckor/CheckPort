@@ -66,7 +66,7 @@
             </div>
             <div class="mt-2" id="loading-msg" style="display:none">
                 <span class="spinner-border spinner-border-sm text-primary"></span>
-                <span class="text-muted ms-1">데이터 조회 중...</span>
+                <span class="text-primary fw-semibold ms-1" id="loading-text">데이터 조회 중... 0%</span>
             </div>
             <div class="mt-2 text-danger fw-semibold" id="error-msg"
                  style="display:none"></div>
@@ -189,6 +189,8 @@
 const COLUMNS = [
     ["date",               "날짜"],
     ["entry_exit",         "입출항"],
+    ["de_raw_entry_dt",    "입항일시"],
+    ["de_raw_depart_dt",   "출항일시"],
     ["port_name",          "항만명"],
     ["vessel_name",        "선박명"],
     ["vessel_type",        "선박종류"],
@@ -203,12 +205,12 @@ const COLUMNS = [
     ["landng_ton",         "양하톤수"],
     ["trnpdt_ton",         "환적톤수"],
     ["grtg",               "총톤수"],
-    ["de_raw_entry_dt",    "입항일시(원본)"],
-    ["de_raw_depart_dt",   "출항일시(원본)"],
     ["declarer",           "신고인"],
 ];
-const PAGE_SIZE = 100;
+const PAGE_SIZE    = 100;
 const NUMERIC_COLS = new Set(["ld_ton", "landng_ton", "trnpdt_ton", "grtg"]);
+const DATETIME_COLS = new Set(["de_raw_entry_dt", "de_raw_depart_dt"]);
+const NOWRAP_COLS  = new Set(["date", "vessel_name", "de_raw_entry_dt", "de_raw_depart_dt"]);
 
 /* ── 상태 ─────────────────────────────────────────────── */
 let allRecords      = [];
@@ -224,12 +226,20 @@ function esc(s) {
                           .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function fmtDatetime(val) {
+    if (!val) return "";
+    // "2025-08-01T17:00:00+09:00" → "17:00"
+    const m = String(val).match(/T(\d{2}:\d{2})/);
+    return m ? m[1] : String(val);
+}
+
 function fmtCell(key, val) {
     if (NUMERIC_COLS.has(key)) {
         const n = parseFloat(val);
         if (!isNaN(n)) return n.toLocaleString("ko-KR");
         return "";
     }
+    if (DATETIME_COLS.has(key)) return fmtDatetime(val);
     return esc(val);
 }
 
@@ -380,27 +390,42 @@ async function runQuery() {
 
     currentParams = { prtAgCd: codes, start_date: startDate, end_date: endDate };
     showError("");
-    showLoading(true);
+    showProgress(0);
     document.getElementById("results-section").style.display = "none";
     document.getElementById("query-btn").disabled = true;
 
-    try {
-        const resp = await fetch("/query", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(currentParams),
-        });
-        const data = await resp.json();
-        if (!resp.ok) throw new Error(data.error || "서버 오류가 발생했습니다.");
-        allRecords = data.records;
-        renderAll();
-        document.getElementById("results-section").style.display = "block";
-    } catch (e) {
-        showError(e.message);
-    } finally {
-        showLoading(false);
+    const params = new URLSearchParams();
+    codes.forEach(c => params.append("prtAgCd", c));
+    params.set("start_date", startDate);
+    params.set("end_date", endDate);
+
+    const es = new EventSource(`/query-stream?${params.toString()}`);
+
+    es.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.error) {
+            es.close();
+            showError(msg.error);
+            showProgress(null);
+            document.getElementById("query-btn").disabled = false;
+        } else if (msg.records !== undefined) {
+            es.close();
+            allRecords = msg.records;
+            renderAll();
+            document.getElementById("results-section").style.display = "block";
+            showProgress(null);
+            document.getElementById("query-btn").disabled = false;
+        } else {
+            showProgress(msg.progress);
+        }
+    };
+
+    es.onerror = () => {
+        es.close();
+        showError("데이터 조회 중 오류가 발생했습니다.");
+        showProgress(null);
         document.getElementById("query-btn").disabled = false;
-    }
+    };
 }
 
 /* ── 렌더링 ───────────────────────────────────────────── */
@@ -585,7 +610,7 @@ function renderTable() {
     document.getElementById("table-body").innerHTML = pageRecs.length
         ? pageRecs.map(r =>
             `<tr>${COLUMNS.map(([key]) =>
-                `<td>${fmtCell(key, r[key])}</td>`
+                `<td${NOWRAP_COLS.has(key) ? ' class="text-nowrap"' : ''}>${fmtCell(key, r[key])}</td>`
             ).join("")}</tr>`
           ).join("")
         : `<tr><td colspan="${COLUMNS.length}" class="text-center text-muted py-4">
@@ -642,8 +667,11 @@ function downloadXlsx() {
 }
 
 /* ── 유틸 ─────────────────────────────────────────────── */
-function showLoading(visible) {
-    document.getElementById("loading-msg").style.display = visible ? "block" : "none";
+function showProgress(pct) {
+    const el = document.getElementById("loading-msg");
+    if (pct === null) { el.style.display = "none"; return; }
+    el.style.display = "block";
+    document.getElementById("loading-text").textContent = `데이터 조회 중... ${pct}%`;
 }
 
 function showError(msg) {

@@ -115,6 +115,7 @@ def fetch_vessel_records(
     start_date: str,
     end_date: str,
     per_page: int = 50,
+    progress_cb=None,
 ) -> list[dict]:
     """API를 호출해 선박 입출항 상세 레코드 목록을 반환합니다 (CSV 저장 없음)."""
 
@@ -190,10 +191,16 @@ def fetch_vessel_records(
                 })
 
     if total_count > 0:
-        extract_items(first_xml)
         pages = (total_count + per_page - 1) // per_page
+        extract_items(first_xml)
+        if progress_cb:
+            progress_cb(1, pages)
         for p in range(2, pages + 1):
             extract_items(call_api(p))
+            if progress_cb:
+                progress_cb(p, pages)
+    elif progress_cb:
+        progress_cb(1, 1)
 
     return all_details
 
