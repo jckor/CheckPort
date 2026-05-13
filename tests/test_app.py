@@ -94,3 +94,17 @@ def test_query_invalid_date_format_returns_400(client):
     )
     assert resp.status_code == 400
     assert "YYYYMMDD" in resp.get_json()["error"]
+
+
+def test_export_invalid_date_format_returns_400(client):
+    resp = client.get("/export?prtAgCd=621&start_date=2025-08-01&end_date=20250831")
+    assert resp.status_code == 400
+    assert "YYYYMMDD" in resp.data.decode()
+
+
+def test_query_date_order_returns_400(client):
+    resp = client.post(
+        "/query",
+        json={"prtAgCd": "621", "start_date": "20250831", "end_date": "20250801"},
+    )
+    assert resp.status_code == 400

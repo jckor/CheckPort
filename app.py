@@ -24,6 +24,8 @@ def query():
         return jsonify({"error": "prtAgCd, start_date, end_date 가 필요합니다."}), 400
     if not re.fullmatch(r'\d{8}', start_date) or not re.fullmatch(r'\d{8}', end_date):
         return jsonify({"error": "날짜 형식은 YYYYMMDD (8자리 숫자)여야 합니다."}), 400
+    if start_date > end_date:
+        return jsonify({"error": "start_date는 end_date보다 늦을 수 없습니다."}), 400
     try:
         records = fetch_vessel_records(SERVICE_KEY, prtAgCd, start_date, end_date)
         return jsonify({"records": records, "total": len(records)})
@@ -50,6 +52,8 @@ def export():
         return "prtAgCd, start_date, end_date 가 필요합니다.", 400
     if not re.fullmatch(r'\d{8}', start_date) or not re.fullmatch(r'\d{8}', end_date):
         return "날짜 형식은 YYYYMMDD (8자리 숫자)여야 합니다.", 400
+    if start_date > end_date:
+        return "start_date는 end_date보다 늦을 수 없습니다.", 400
     try:
         records = fetch_vessel_records(SERVICE_KEY, prtAgCd, start_date, end_date)
     except Exception as e:
@@ -87,7 +91,8 @@ def export():
     wb.save(buf)
     buf.seek(0)
 
-    filename = f"vessel_movements_{prtAgCd}_{start_date}_{end_date}.xlsx"
+    safe_port = re.sub(r'[^\w-]', '_', prtAgCd)
+    filename = f"vessel_movements_{safe_port}_{start_date}_{end_date}.xlsx"
     return send_file(
         buf,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
